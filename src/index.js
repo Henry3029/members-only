@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
-import pool.js from './db/pool.js';
+import pool from './db/pool.js';
 
 const app = express();
 
