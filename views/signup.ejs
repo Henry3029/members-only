@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up</title>
+</head>
+<body>
+  <h1>Sign Up</h1>
+
+  <!-- Display validation errors if any exist -->
+  <% if (locals.errors && errors.length > 0) { %>
+    <ul style="color: red;">
+      <% errors.forEach(error => { %>
+        <li><%= error.msg %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <form action="/sign-up" method="POST">
+    <div>
+      <label>First Name:</label>
+      <input type="text" name="first_name" required>
+    </div>
+    <div>
+      <label>Last Name:</label>
+      <input type="text" name="last_name" required>
+    </div>
+    <div>
+      <label>Email (Username):</label>
+      <input type="email" name="email" required>
+    </div>
+    <div>
+      <label>Password:</label>
+      <input type="password" name="password" required>
+    </div>
+    <div>
+      <label>Confirm Password:</label>
+      <input type="password" name="confirm_password" required>
+    </div>
+    <button type="submit">Sign Up</button>
+  </form>
+</body>
+</html>
