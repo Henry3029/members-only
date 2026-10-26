@@ -21,6 +21,25 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
+// 3. Updated Home Route: Fetch messages and pass user + messages to index.ejs
+app.get('/', async (req, res) => {
+  try {
+    // Join messages with users table to grab first and last names
+    const query = `
+      SELECT messages.*, users.first_name, users.last_name 
+      FROM messages 
+      JOIN users ON messages.user_id = users.id 
+      ORDER BY added DESC;
+    `;
+    const { rows } = await pool.query(query);
+    
+    res.render('index', { user: req.user, messages: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error loading home page');
+  }
+});
+
 // GET route to show the form
 app.get('/sign-up', (req, res) => {
   res.render('signup');
@@ -134,6 +153,34 @@ app.post('/join-club', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Error upgrading membership status');
+  }
+});
+
+// 1. Show the create message form (Only if logged in)
+app.get('/new-message', (req, res) => {
+  if (!req.user) {
+    return res.redirect('/log-in');
+  }
+  res.render('new-message');
+});
+
+// 2. Handle creating the message
+app.post('/new-message', async (req, res) => {
+  if (!req.user) {
+    return res.redirect('/log-in');
+  }
+
+  try {
+    const { title, text } = req.body;
+    const query = `
+      INSERT INTO messages (title, text, user_id) 
+      VALUES ($1, $2, $3);
+    `;
+    await pool.query(query, [title, text, req.user.id]);
+    res.redirect('/');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error saving message');
   }
 });
 
