@@ -2,11 +2,24 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
 import pool from './db/pool.js';
+import session from 'express-session';
+import passport from './config/passport.js';
 
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
+
+// Session and Passport middleware
+app.use(
+  session({ 
+    secret: process.env.SESSION_SECRET || 'cats', 
+    resave: false, 
+    saveUninitialized: false 
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
 // GET route to show the form
 app.get('/sign-up', (req, res) => {
@@ -61,6 +74,32 @@ app.post(
     }
   }
 );
+
+// GET route to display the login form
+app.get('/log-in', (req, res) => {
+  res.render('login');
+});
+
+// POST route to handle authentication via Passport
+app.post(
+  '/log-in',
+  passport.authenticate('local', {
+    successRedirect: '/',       // Where to go if login succeeds
+    failureRedirect: '/log-in', // Where to go if login fails
+  })
+);
+
+// GET route to log the user out
+app.get('/log-out', (req, res, next) => {
+  req.logout((err) => {
+    if (err) {
+      return next(err);
+    }
+    res.redirect('/');
+  });
+});
+
+
 
 // 1. GET route to show the "Join Club" form view
 app.get('/join-club', (req, res) => {
