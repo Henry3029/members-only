@@ -62,6 +62,43 @@ app.post(
   }
 );
 
+// 1. GET route to show the "Join Club" form view
+app.get('/join-club', (req, res) => {
+  res.render('join-club');
+});
+
+// 2. POST route to handle the passcode submission and update the database
+app.post('/join-club', async (req, res) => {
+  const { passcode } = req.body;
+
+  // Check if the entered passcode matches your .env secret
+  if (passcode !== process.env.CLUB_PASSCODE) {
+    // If wrong, re-render the form with an error message
+    return res.status(400).render('join-club', { error: 'Incorrect passcode! Try again.' });
+  }
+
+  try {
+    // NOTE: In the next step (Passport.js), req.user will hold the logged-in user's info.
+    // For now, assuming you have req.user available:
+    const userId = req.user.id; 
+
+    // Run the SQL query directly here using pool.query
+    const query = `
+      UPDATE users 
+      SET membership_status = 'member' 
+      WHERE id = $1;
+    `;
+    await pool.query(query, [userId]);
+
+    // Send them back to the home page after successfully joining
+    res.redirect('/');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error upgrading membership status');
+  }
+});
+
+
 // Choose a port (Render will automatically supply its own port via process.env.PORT)
 const PORT = process.env.PORT || 3000;
 
