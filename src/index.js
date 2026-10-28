@@ -1,3 +1,4 @@
+import 'dotenv/config'; // 1. Load environment variables first!
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
@@ -9,6 +10,7 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
+app.set('views', './views');
 
 // Session and Passport middleware
 app.use(
@@ -21,10 +23,9 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 3. Updated Home Route: Fetch messages and pass user + messages to index.ejs
+// 1. Home Route: Fetch messages and pass user + messages to index.ejs
 app.get('/', async (req, res) => {
   try {
-    // Join messages with users table to grab first and last names
     const query = `
       SELECT messages.*, users.first_name, users.last_name 
       FROM messages 
@@ -35,27 +36,23 @@ app.get('/', async (req, res) => {
     
     res.render('index', { user: req.user, messages: rows });
   } catch (err) {
-    console.error(err);
+    console.error('Home route database error:', err);
     res.status(500).send('Error loading home page');
   }
 });
 
-// GET route to show the form
+// 2. Sign Up Routes
 app.get('/sign-up', (req, res) => {
   res.render('signup');
 });
 
-// POST route with validation, sanitization, and custom password matching
 app.post(
   '/sign-up',
   [
-    // 1. Sanitize and validate fields
     body('first_name').trim().notEmpty().withMessage('First name is required').escape(),
     body('last_name').trim().notEmpty().withMessage('Last name is required').escape(),
     body('email').isEmail().withMessage('Must be a valid email address').normalizeEmail(),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
-    
-    // 2. Custom validator to check if confirm_password matches password
     body('confirm_password').custom((value, { req }) => {
       if (value !== req.body.password) {
         throw new Error('Password confirmation does not match password');
@@ -66,18 +63,14 @@ app.post(
   async (req, res) => {
     const errors = validationResult(req);
     
-    // If validation fails, re-render the form with error messages
     if (!errors.isEmpty()) {
       return res.status(400).render('signup', { errors: errors.array() });
     }
 
     try {
       const { first_name, last_name, email, password } = req.body;
-
-      // 3. Hash the password using bcrypt
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // 4. Save user to PostgreSQL database
       const query = `
         INSERT INTO users (first_name, last_name, email, password)
         VALUES ($1, $2, $3, $4)
@@ -85,8 +78,7 @@ app.post(
       `;
       await pool.query(query, [first_name, last_name, email, hashedPassword]);
 
-      // Redirect to login or home page upon success
-      res.redirect('/');
+      res.redirect('/log-in');
     } catch (err) {
       console.error(err);
       res.status(500).send('Error registering user');
@@ -94,21 +86,19 @@ app.post(
   }
 );
 
-// GET route to display the login form
+// 3. Authentication Routes
 app.get('/log-in', (req, res) => {
   res.render('login');
 });
 
-// POST route to handle authentication via Passport
 app.post(
   '/log-in',
   passport.authenticate('local', {
-    successRedirect: '/',       // Where to go if login succeeds
-    failureRedirect: '/log-in', // Where to go if login fails
+    successRedirect: '/',
+    failureRedirect: '/log-in',
   })
 );
 
-// GET route to log the user out
 app.get('/log-out', (req, res, next) => {
   req.logout((err) => {
     if (err) {
@@ -118,29 +108,27 @@ app.get('/log-out', (req, res, next) => {
   });
 });
 
-
-
-// 1. GET route to show the "Join Club" form view
+// 4. Join Club Routes
 app.get('/join-club', (req, res) => {
+  if (!req.user) {
+    return res.redirect('/log-in');
+  }
   res.render('join-club');
 });
 
-// 2. POST route to handle the passcode submission and update the database
 app.post('/join-club', async (req, res) => {
+  if (!req.user) {
+    return res.redirect('/log-in');
+  }
+
   const { passcode } = req.body;
 
-  // Check if the entered passcode matches your .env secret
   if (passcode !== process.env.CLUB_PASSCODE) {
-    // If wrong, re-render the form with an error message
     return res.status(400).render('join-club', { error: 'Incorrect passcode! Try again.' });
   }
 
   try {
-    // NOTE: In the next step (Passport.js), req.user will hold the logged-in user's info.
-    // For now, assuming you have req.user available:
     const userId = req.user.id; 
-
-    // Run the SQL query directly here using pool.query
     const query = `
       UPDATE users 
       SET membership_status = 'member' 
@@ -148,7 +136,6 @@ app.post('/join-club', async (req, res) => {
     `;
     await pool.query(query, [userId]);
 
-    // Send them back to the home page after successfully joining
     res.redirect('/');
   } catch (err) {
     console.error(err);
@@ -156,7 +143,7 @@ app.post('/join-club', async (req, res) => {
   }
 });
 
-// 1. Show the create message form (Only if logged in)
+// 5. Message Creation Routes
 app.get('/new-message', (req, res) => {
   if (!req.user) {
     return res.redirect('/log-in');
@@ -164,7 +151,6 @@ app.get('/new-message', (req, res) => {
   res.render('new-message');
 });
 
-// 2. Handle creating the message
 app.post('/new-message', async (req, res) => {
   if (!req.user) {
     return res.redirect('/log-in');
@@ -184,11 +170,9 @@ app.post('/new-message', async (req, res) => {
   }
 });
 
-
-// Choose a port (Render will automatically supply its own port via process.env.PORT)
+// Port configuration
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server is up and running on port ${PORT}! 🚀`);
+  console.log(`Server is up and running on port ${PORT}! `);
 });
-
